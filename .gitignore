@@ -1,0 +1,11 @@
+# Ignore OpenAI API key file
+api_key.txt
+
+# Python cache
+__pycache__/
+*.pyc
+*.log
+.env
+*.mp3
+*.wav
+ai_images/
