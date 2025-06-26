@@ -1,8 +1,12 @@
 import os
 from PIL import Image, ImageTk
 import subprocess
+import tkinter as tk
 
+# Directory where AI-generated images are stored
 IMAGE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "ai_images"))
+
+# Global image state
 image_files = []
 selected_index = 0
 
@@ -30,41 +34,21 @@ def prev_image():
     if image_files:
         selected_index = (selected_index - 1) % len(image_files)
 
-def preprocess_image_for_inky(local_path):
-    try:
-        img = Image.open(local_path).convert("RGB")
-        img = img.resize((800, 480))
-        img = img.convert("P", palette=Image.ADAPTIVE, colors=6)
-        prepped_path = os.path.join(IMAGE_DIR, "_prepped_for_inky.png")
-        img.save(prepped_path)
-        return prepped_path
-    except Exception as e:
-        print(f"Preprocessing failed: {e}")
-        return None
-
 def send_to_inky():
     local_path = get_current_image_path()
     if not local_path:
         print("No image selected")
         return
 
-    prepped_path = preprocess_image_for_inky(local_path)
-    if not prepped_path:
-        print("Image preprocessing failed. Aborting send.")
-        return
-
-    filename = os.path.basename(prepped_path)
+    # Send the original file without any resizing or color limiting
+    filename = os.path.basename(local_path)
     remote_dir = "/home/spencer/ai_images"
     remote_path = f"{remote_dir}/{filename}"
 
-    print(f"Uploading {prepped_path} to Pi Zero...")
+    print(f"Uploading {local_path} to Pi Zero...")
     try:
-        subprocess.run([
-            "ssh", "spencer@pizero", f"mkdir -p {remote_dir}"
-        ], check=True)
-        subprocess.run([
-            "scp", prepped_path, f"spencer@pizero:{remote_path}"
-        ], check=True)
+        subprocess.run(["ssh", "spencer@pizero", f"mkdir -p {remote_dir}"], check=True)
+        subprocess.run(["scp", local_path, f"spencer@pizero:{remote_path}"], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Failed to upload image: {e}")
         return
@@ -73,7 +57,7 @@ def send_to_inky():
     try:
         subprocess.run([
             "ssh", "spencer@pizero",
-            f"python3 /home/spencer/send_to_inky.py '{remote_path}'"
+            f"/home/spencer/.virtualenvs/pimoroni/bin/python3 /home/spencer/send_to_inky.py '{remote_path}'"
         ], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Failed to trigger remote script: {e}")
@@ -95,7 +79,6 @@ def draw_gallery_grid(parent, canvas):
             print(f"Error loading image: {e}")
             continue
 
-        import tkinter as tk
         frame = tk.Frame(parent, bd=2, relief="solid", bg=("cyan" if i == selected_index else "black"))
         frame.grid(row=i // cols, column=i % cols, padx=4, pady=4)
         lbl = tk.Label(frame, image=photo, bg=frame["bg"])

@@ -29,7 +29,6 @@ current_screen = "home"
 prompt_entry = None
 image_label = None
 status = None
-
 gallery_update_callback = None
 
 menu_items = [
@@ -79,6 +78,25 @@ def go_home():
     draw_menu()
     update_button_styles()
 
+def place_gallery_layout(canvas_widget, back_button):
+    canvas_widget.grid(row=0, column=0, columnspan=3, sticky="nsew")
+    back_button.grid(row=99, column=1, pady=10)
+
+def open_gallery_gui():
+    global gallery_update_callback
+    clear_content()
+    update_status("gallery")
+    app10_gallery.load_images()
+
+    gallery_canvas = tk.Canvas(content_frame, bg="black")
+    back_button = tk.Button(content_frame, text="Back to Home", command=go_home)
+
+    place_gallery_layout(gallery_canvas, back_button)
+
+    app10_gallery.draw_gallery_grid(content_frame, gallery_canvas)
+
+    gallery_update_callback = lambda: app10_gallery.draw_gallery_grid(content_frame, gallery_canvas)
+
 def open_imagegen_gui():
     global prompt_entry, image_label, status
     clear_content()
@@ -126,22 +144,6 @@ def run_generation():
             status.config(text=f"? {e}", fg="red")
 
     threading.Thread(target=task).start()
-
-def open_gallery_gui():
-    global gallery_update_callback
-    clear_content()
-    update_status("gallery")
-    app10_gallery.load_images()
-
-    gallery_canvas = tk.Canvas(content_frame, bg="black")
-    gallery_canvas.pack(expand=True, fill=tk.BOTH)
-
-    app10_gallery.draw_gallery_grid(content_frame, gallery_canvas)
-
-    gallery_update_callback = lambda: app10_gallery.draw_gallery_grid(content_frame, gallery_canvas)
-
-    btn = tk.Button(content_frame, text="Back to Home", command=go_home)
-    btn.pack(pady=10)
 
 def launch_app(index, module=None):
     if index == 8:
