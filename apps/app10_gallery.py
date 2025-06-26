@@ -3,12 +3,10 @@ from PIL import Image, ImageTk
 import subprocess
 import tkinter as tk
 
-# Directory where AI-generated images are stored
 IMAGE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "ai_images"))
-
-# Global image state
 image_files = []
 selected_index = 0
+thumbnail_refs = []  # List of (frame, label) tuples
 
 def load_images():
     global image_files
@@ -40,7 +38,6 @@ def send_to_inky():
         print("No image selected")
         return
 
-    # Send the original file without any resizing or color limiting
     filename = os.path.basename(local_path)
     remote_dir = "/home/spencer/ai_images"
     remote_path = f"{remote_dir}/{filename}"
@@ -62,13 +59,13 @@ def send_to_inky():
     except subprocess.CalledProcessError as e:
         print(f"Failed to trigger remote script: {e}")
 
-def draw_gallery_grid(parent, canvas):
+def draw_gallery_grid(parent, thumb_size=(270, 160), padding=1):
+    global thumbnail_refs
+    thumbnail_refs.clear()
     for widget in parent.winfo_children():
         widget.destroy()
 
     cols = 3
-    thumb_size = (120, 120)
-
     for i, file in enumerate(image_files):
         img_path = os.path.join(IMAGE_DIR, file)
         try:
@@ -79,11 +76,17 @@ def draw_gallery_grid(parent, canvas):
             print(f"Error loading image: {e}")
             continue
 
-        frame = tk.Frame(parent, bd=2, relief="solid", bg=("cyan" if i == selected_index else "black"))
-        frame.grid(row=i // cols, column=i % cols, padx=4, pady=4)
+        frame = tk.Frame(parent, bd=2, relief="flat", bg=("cyan" if i == selected_index else "black"))
+        frame.grid(row=i // cols, column=i % cols, padx=padding, pady=padding)
         lbl = tk.Label(frame, image=photo, bg=frame["bg"])
         lbl.image = photo
         lbl.pack()
-        lbl.file_path = img_path
 
-    canvas.update_idletasks()
+        thumbnail_refs.append((frame, lbl))
+
+def update_gallery_highlight(parent):
+    global thumbnail_refs
+    for i, (frame, lbl) in enumerate(thumbnail_refs):
+        bg = "cyan" if i == selected_index else "black"
+        frame.config(bg=bg)
+        lbl.config(bg=bg)
