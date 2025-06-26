@@ -32,13 +32,22 @@ def generate_image_from_prompt(prompt):
     except Exception as e:
         raise RuntimeError(f"Image generation failed: {e}")
 
-# === Save Image to Disk ===
+# === Save Image and Inky-Compatible Version ===
 def save_image(image: Image.Image):
     image_dir = os.path.join(os.path.dirname(__file__), "ai_images")
     os.makedirs(image_dir, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Save full version
     filename = f"{timestamp}.png"
     save_path = os.path.join(image_dir, filename)
     image.save(save_path)
     print(f"? Image saved: {save_path}")
-    return save_path
+
+    # Save Inky-compatible version
+    inky_img = image.resize((800, 480)).convert("P", palette=Image.ADAPTIVE, colors=6)
+    inky_path = os.path.join(image_dir, f"{timestamp}_inky.png")
+    inky_img.save(inky_path)
+    print(f"? Inky image saved: {inky_path}")
+
+    return save_path, inky_path

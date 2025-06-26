@@ -2,16 +2,15 @@ import tkinter as tk
 import threading
 import serial
 import time
-from apps import placeholder_app, app11_imagegen
-from PIL import ImageTk
+import os
+from PIL import ImageTk, Image
+from apps import placeholder_app, app11_imagegen, app10_gallery
 
-# === App Setup ===
 root = tk.Tk()
 root.title("Todo Pi Dashboard")
 root.geometry("480x320")
 root.configure(bg="black")
 
-# === Layout Frames ===
 container = tk.Frame(root, bg="black")
 container.pack(fill=tk.BOTH, expand=True)
 
@@ -31,6 +30,8 @@ prompt_entry = None
 image_label = None
 status = None
 
+gallery_update_callback = None
+
 menu_items = [
     ("App 0", placeholder_app),
     ("App 1", placeholder_app),
@@ -39,14 +40,30 @@ menu_items = [
     ("App 4", placeholder_app),
     ("App 5", placeholder_app),
     ("App 6", placeholder_app),
-    ("App 7", placeholder_app),
-    ("App 8", placeholder_app),
-    ("App 9", placeholder_app),
-    ("App 10", placeholder_app),
-    ("Images", app11_imagegen),
+    ("Gallery", app10_gallery),
+    ("ImageGen", app11_imagegen),
 ]
 
-# === UI Logic ===
+def draw_menu():
+    global buttons
+    for widget in content_frame.winfo_children():
+        widget.destroy()
+    buttons.clear()
+
+    for i, (label_text, app_module) in enumerate(menu_items):
+        row, col = divmod(i, 3)
+        btn = tk.Button(
+            content_frame, text=label_text,
+            font=("Arial", 14), bg="#222222", fg="white",
+            width=12, height=3, relief=tk.RAISED, bd=2,
+            command=(lambda m=app_module, idx=i: launch_app(idx, m))
+        )
+        btn.grid(row=row, column=col, padx=5, pady=5)
+        buttons.append(btn)
+
+    for j in range(3):
+        lbl = tk.Label(content_frame, text="Settings", font=("Arial", 12), bg="#111111", fg="gray", width=12, height=2, relief=tk.RIDGE)
+        lbl.grid(row=3, column=j, padx=5, pady=5)
 
 def update_status(text):
     global current_screen
@@ -57,43 +74,10 @@ def clear_content():
     for widget in content_frame.winfo_children():
         widget.destroy()
 
-def draw_menu():
-    global buttons
-    clear_content()
-    buttons.clear()
-
-    for i in range(12):
-        label = f"App {i}" if i < 11 else "Images"
-        btn = tk.Button(
-            content_frame,
-            text=label,
-            font=("Arial", 14),
-            width=10,
-            height=3,
-            command=lambda i=i: launch_app(i),
-            bg="gray",
-            fg="white"
-        )
-        btn.grid(row=i // 3, column=i % 3, padx=10, pady=10)
-        buttons.append(btn)
-
-def update_button_styles():
-    for i, btn in enumerate(buttons):
-        if i == selected_index:
-            btn.config(bg="cyan", fg="black")
-        else:
-            btn.config(bg="gray", fg="white")
-
-def thread_safe_update_styles():
-    root.after(0, update_button_styles)
-
-def open_placeholder_gui(key_num):
-    clear_content()
-    update_status(f"app {key_num}")
-    label = tk.Label(content_frame, text=f"You pressed key {key_num}", font=("Arial", 20), bg="black", fg="white")
-    label.pack(pady=30)
-    btn = tk.Button(content_frame, text="Back to Home", command=go_home)
-    btn.pack(pady=10)
+def go_home():
+    update_status("home")
+    draw_menu()
+    update_button_styles()
 
 def open_imagegen_gui():
     global prompt_entry, image_label, status
@@ -106,10 +90,13 @@ def open_imagegen_gui():
     prompt_entry = tk.Entry(content_frame, font=("Arial", 16), width=40)
     prompt_entry.insert(0, "A futuristic city at sunset")
     prompt_entry.pack(pady=5)
-    prompt_entry.focus_set()  # allow keyboard typing
+    prompt_entry.focus_set()
 
     image_label = tk.Label(content_frame, bg="black")
     image_label.pack(pady=10)
+
+    btn = tk.Button(content_frame, text="Back to Home", command=go_home)
+    btn.pack(pady=10)
 
 def run_generation():
     global prompt_entry, image_label, status
@@ -140,19 +127,40 @@ def run_generation():
 
     threading.Thread(target=task).start()
 
-def go_home():
-    update_status("home")
-    draw_menu()
-    update_button_styles()
+def open_gallery_gui():
+    global gallery_update_callback
+    clear_content()
+    update_status("gallery")
+    app10_gallery.load_images()
 
-def launch_app(index):
-    if index < 11:
-        placeholder_app.run(key_number=index)
-        open_placeholder_gui(index)
-    else:
+    gallery_canvas = tk.Canvas(content_frame, bg="black")
+    gallery_canvas.pack(expand=True, fill=tk.BOTH)
+
+    app10_gallery.draw_gallery_grid(content_frame, gallery_canvas)
+
+    gallery_update_callback = lambda: app10_gallery.draw_gallery_grid(content_frame, gallery_canvas)
+
+    btn = tk.Button(content_frame, text="Back to Home", command=go_home)
+    btn.pack(pady=10)
+
+def launch_app(index, module=None):
+    if index == 8:
         open_imagegen_gui()
+    elif index == 7:
+        open_gallery_gui()
+    else:
+        update_status(f"App {index}")
 
-# === MacroPad Serial Listener ===
+def update_button_styles():
+    for i, btn in enumerate(buttons):
+        if i == selected_index:
+            btn.config(bg="cyan", fg="black")
+        else:
+            btn.config(bg="#222222", fg="white")
+
+def thread_safe_update_styles():
+    root.after(0, update_button_styles)
+
 def macropad_listener():
     global selected_index
     try:
@@ -174,22 +182,37 @@ def macropad_listener():
             if line.startswith("rotary:"):
                 direction = line.split(":")[1]
                 if direction == "+1":
-                    selected_index = (selected_index + 1) % len(buttons)
+                    selected_index = (selected_index + 1) % len(menu_items)
                     thread_safe_update_styles()
                 elif direction == "-1":
-                    selected_index = (selected_index - 1) % len(buttons)
+                    selected_index = (selected_index - 1) % len(menu_items)
                     thread_safe_update_styles()
-
             elif line.startswith("hotkey:"):
                 key = int(line.split(":")[1])
-                if 0 <= key < len(menu_items):
-                    root.after(0, lambda k=key: launch_app(k))
-                elif key == 11:
-                    root.after(0, lambda: launch_app(selected_index))
+                if key == 0:
+                    root.after(0, go_home)
+                elif key == 7:
+                    root.after(0, open_gallery_gui)
+                elif key == 8:
+                    root.after(0, open_imagegen_gui)
+                elif 0 <= key < len(menu_items):
+                    root.after(0, lambda: launch_app(key))
+
+        elif current_screen == "gallery":
+            if line == "rotary:+1":
+                root.after(0, lambda: [app10_gallery.next_image(), gallery_update_callback()])
+            elif line == "rotary:-1":
+                root.after(0, lambda: [app10_gallery.prev_image(), gallery_update_callback()])
+            elif line == "hotkey:2" or line == "encoder_press":
+                root.after(0, app10_gallery.send_to_inky)
+            elif line == "hotkey:0":
+                root.after(0, go_home)
 
         elif current_screen == "images":
-            if line == "hotkey:2" or line == "hotkey:11":
+            if line == "hotkey:2" or line == "encoder_press":
                 root.after(0, run_generation)
+            elif line == "hotkey:0":
+                root.after(0, go_home)
 
 # === Start ===
 draw_menu()
