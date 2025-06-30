@@ -1,5 +1,6 @@
 import os
 from PIL import Image
+import subprocess
 
 # === Configuration ===
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -83,7 +84,6 @@ def send_to_inky():
     """
     Uploads the currently selected image to Pi Zero & triggers it.
     """
-    from subprocess import run, CalledProcessError
     local = get_current_image_path()
     if not local:
         print("No image selected")
@@ -94,11 +94,14 @@ def send_to_inky():
     remote = f"{remote_dir}/{filename}"
 
     try:
-        run(["ssh", "spencer@pizero", f"mkdir -p {remote_dir}"], check=True)
-        run(["scp", local, f"spencer@pizero:{remote}"], check=True)
-        run([
+        subprocess.run(["ssh", "spencer@pizero", f"mkdir -p {remote_dir}"], check=True)
+        subprocess.run(["scp", local, f"spencer@pizero:{remote}"], check=True)
+        subprocess.run([
             "ssh", "spencer@pizero",
             f"/home/spencer/.virtualenvs/pimoroni/bin/python3 /home/spencer/send_to_inky.py '{remote}'"
         ], check=True)
-    except CalledProcessError as e:
+    except subprocess.CalledProcessError as e:
         print(f"Failed to send to Inky: {e}")
+
+# Bind key 2 to send_to_inky
+# This function will be called from gui_dashboard.py when key 2 is pressed.
