@@ -2,8 +2,9 @@ import os
 import threading
 import serial
 import time
+import math
 import customtkinter as ctk
-from PIL import Image, ImageTk, ImageOps
+from PIL import Image, ImageOps
 from apps import placeholder_app, app10_gallery, app11_imagegen
 
 # === Directories ===
@@ -49,11 +50,9 @@ root.bind("<Escape>", lambda e: root.destroy())
 
 container = ctk.CTkFrame(root)
 container.pack(fill="both")
-
 content_frame = ctk.CTkFrame(container)
-# Make window fullscreen and keep content static
 root.geometry("800x480")
-content_frame.pack(fill="none")
+content_frame.pack()
 content_frame.configure(width=800, height=480)
 content_frame.pack_propagate(False)
 
@@ -111,52 +110,45 @@ def open_gallery_gui():
 
     # load thumbnails
     app10_gallery.load_images()
-    thumbs = app10_gallery.get_all_thumbnails(size=(200,150))
+    thumbs = app10_gallery.get_all_thumbnails(size=(200,120))
     cols = 3
-    frame_w, frame_h = 200, 150
+    frame_w, frame_h = 200, 120
+    rows = math.ceil(len(thumbs) / cols)
+    total_w, total_h = 800, 480
+    gap_x = (total_w - cols * frame_w) / (cols + 1)
+    gap_y = (total_h - rows * frame_h) / (rows + 1)
     gallery_frames = []
 
-    # display thumbnails in fixed grid
     for i, (thumb, _) in enumerate(thumbs):
         row, col = divmod(i, cols)
-        # fit thumbnail to frame preserving aspect ratio
         fit_img = ImageOps.contain(thumb, (frame_w, frame_h), Image.LANCZOS)
         frame = ctk.CTkFrame(
             content_frame,
             width=frame_w,
             height=frame_h,
-            fg_color='transparent',
             corner_radius=0,
             border_width=2 if i == app10_gallery.selected_index else 0,
-            border_color='blue'
+            border_color='lightblue'
         )
-        frame.place(x=col * (frame_w + 10), y=row * (frame_h + 10))
+        x = int(gap_x + col * (frame_w + gap_x))
+        y = int(gap_y + row * (frame_h + gap_y))
+        frame.place(x=x, y=y)
+
         img_ctk = ctk.CTkImage(light_image=fit_img, dark_image=fit_img, size=(fit_img.width, fit_img.height))
-        lbl = ctk.CTkLabel(frame, image=img_ctk, text='', fg_color='transparent')
+        lbl = ctk.CTkLabel(frame, image=img_ctk)
         lbl.image = img_ctk
-        # center the image inside the frame
         lbl.place(x=(frame_w - fit_img.width)//2, y=(frame_h - fit_img.height)//2)
         gallery_frames.append(frame)
 
-    # function to refresh highlight
     def refresh():
         sel = app10_gallery.selected_index
         for j, fr in enumerate(gallery_frames):
-            fr.configure(
-                border_width=2 if j == sel else 0,
-                border_color='blue'
-            )
+            fr.configure(border_width=2 if j == sel else 0, border_color='lightblue')
 
-    # bind rotary actions
-    def nxt():
-        app10_gallery.next_image()
-        refresh()
-
-    def prv():
-        app10_gallery.prev_image()
-        refresh()
-
-    gallery_update_callback = (nxt, prv)
+    gallery_update_callback = (
+        lambda: (app10_gallery.next_image(), refresh()),
+        lambda: (app10_gallery.prev_image(), refresh())
+    )
 
 
 def open_imagegen_gui():
